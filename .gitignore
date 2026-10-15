@@ -2,6 +2,11 @@
 /data/mp20/
 /data/mp20_ref_stru_mace/
 
+/manuscript/
+/temp/
+/.vscode/
+/metric/
+/note.md
 
 # Python cache
 __pycache__/
@@ -17,3 +22,4 @@ outputs/
 
 # Editor and system files
 .DS_Store
+.gitignore
