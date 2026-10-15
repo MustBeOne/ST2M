@@ -4,7 +4,7 @@ import numpy as np
 from pymatgen.core import Lattice, Structure
 from collections import defaultdict
 import pyxtal
-from project.utils.spg_info import spg_wyckoff_degrees_of_freedom, number_element
+from st2m.utils.spg_info import spg_wyckoff_degrees_of_freedom, number_element
 
 def analyse_orbit_occupation(discrete_tab, wyckoff_letters):
     posi_orbs=defaultdict(list)

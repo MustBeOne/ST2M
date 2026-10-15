@@ -6,9 +6,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from project.model.diffusion import ContinuousDDPM, D3PMDiffusion, D3PMTransition
+from st2m.model.diffusion import ContinuousDDPM, D3PMDiffusion, D3PMTransition
 
-from project.model.model_utils import (
+from st2m.model.model_utils import (
     _labels,
     _sum_by_batch,
     _lattice_mask_from_space_group,

@@ -1,32 +1,26 @@
-
-import sys
 from pathlib import Path
 
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import os
 import torch
 import json
 from typing import Any
 
-PROJECT_DIR = Path(__file__).resolve().parents[1]
-if str(PROJECT_DIR) not in sys.path:
-    sys.path.insert(0, str(PROJECT_DIR))
 
-from project.utils import config as cfg
-from project.generate import lattice6_recover, wyckoff_sample_to_tables
+from st2m import cli_args
+from st2m.utils import config as cfg
+from st2m.generate import lattice6_recover, wyckoff_sample_to_tables
 import argparse
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Test joint D3PM/DDPM U-NET crystal diffusion.")
-    cfg.add_common_args(parser)
-    cfg.add_model_args(parser)
-    cfg.add_test_args(parser)
+    cli_args.add_common_args(parser)
+    cli_args.add_model_args(parser)
+    cli_args.add_test_args(parser)
     return parser
 
 def save_wyckoff_generated_cifs(samples: dict[str, Any], cif_dir:Path, output_dir:Path, parser) -> None:
-    from project.utils.dataset_utils import tables_to_crystal
+    from st2m.utils.dataset_utils import tables_to_crystal
 
     cif_dir.mkdir(parents=True, exist_ok=True)
     file_list = os.listdir(cif_dir)
@@ -72,11 +66,14 @@ def save_wyckoff_generated_cifs(samples: dict[str, Any], cif_dir:Path, output_di
     print(f"saved CIFs: {saved}/{num_save} -> {cif_dir}")
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-output_dir=PROJECT_ROOT / 'outputs' / 'samples'
-samples_dir=output_dir / 'samples_test.pt'
-cif_dir= output_dir / 'cif'
+def main() -> None:
+    parser = build_parser().parse_args()
+    output_dir = cfg.SAMPLE_DIR
+    samples_dir = output_dir / 'samples_test.pt'
+    cif_dir = output_dir / 'cif'
+    samples = torch.load(samples_dir)['samples']
+    save_wyckoff_generated_cifs(samples, cif_dir, output_dir, parser)
 
-samples=torch.load(samples_dir)['samples']
-parser=build_parser().parse_args()
-save_wyckoff_generated_cifs(samples, cif_dir, output_dir, parser)
+
+if __name__ == "__main__":
+    main()

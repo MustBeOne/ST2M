@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 import argparse
@@ -20,18 +16,19 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-from project.utils import config as cfg
-from project.utils.utils import *
-from project.model.dataset import ProcessedCrystalTableDataset, collate_crystal_tables
-from project.model.ST2M import ST2MDiffusion
-from project.logging_utils import tee_output
+from st2m import cli_args
+from st2m.utils import config as cfg
+from st2m.utils.utils import *
+from st2m.model.dataset import ProcessedCrystalTableDataset, collate_crystal_tables
+from st2m.model.ST2M import ST2MDiffusion
+from st2m.logging_utils import tee_output
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train joint D3PM/DDPM crystal diffusion with U-NET denoisers.")
-    cfg.add_common_args(parser)
-    cfg.add_model_args(parser)
-    cfg.add_train_args(parser)
+    cli_args.add_common_args(parser)
+    cli_args.add_model_args(parser)
+    cli_args.add_train_args(parser)
     return parser
 
 

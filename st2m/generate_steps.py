@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 import argparse
@@ -13,12 +9,12 @@ from typing import Any
 
 import torch
 
-from project.model.model_utils import (
+from st2m.model.model_utils import (
     _complete_lattice_from_space_group,
     _d3pm_p_sample_packed,
     _lattice_mask_from_space_group,
 )
-from project.generate import (
+from st2m.generate import (
     build_parser as build_test_parser,
     lattice6_recover,
     load_model,
@@ -27,11 +23,12 @@ from project.generate import (
     make_template_batch,
     wyckoff_sample_to_tables,
 )
-from project.train import resolve_device, set_seed
-from project.utils.dataset_utils import tables_to_crystal
+from st2m.train import resolve_device, set_seed
+from st2m.utils import config as cfg
+from st2m.utils.dataset_utils import tables_to_crystal
 
 
-PROJECT_DIR = Path(__file__).resolve().parent
+PROJECT_DIR = cfg.PROJECT_ROOT
 
 
 def build_parser() -> argparse.ArgumentParser:

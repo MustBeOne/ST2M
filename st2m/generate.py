@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 import zipfile
@@ -18,9 +14,10 @@ import numpy as np
 import torch
 import torch.distributed as dist
 
-from project.utils import config as cfg
-from project.logging_utils import tee_output
-from project.train import (
+from st2m import cli_args
+from st2m.utils import config as cfg
+from st2m.logging_utils import tee_output
+from st2m.train import (
     cleanup_distributed,
     is_main_process,
     make_model,
@@ -28,14 +25,14 @@ from project.train import (
     set_seed,
     setup_distributed,
 )
-from project.utils.spg_info import spg_wyckoff_degrees_of_freedom, wyckoff_label_to_index
+from st2m.utils.spg_info import spg_wyckoff_degrees_of_freedom, wyckoff_label_to_index
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Sample from joint D3PM/DDPM Wyckoff diffusion.")
-    cfg.add_common_args(parser)
-    cfg.add_model_args(parser)
-    cfg.add_test_args(parser)
+    cli_args.add_common_args(parser)
+    cli_args.add_model_args(parser)
+    cli_args.add_test_args(parser)
     return parser
 
 
@@ -289,7 +286,7 @@ def wyckoff_sample_to_tables(
 
 
 def save_wyckoff_generated_cifs(samples: dict[str, Any], args: argparse.Namespace) -> None:
-    from project.utils.dataset_utils import tables_to_crystal
+    from st2m.utils.dataset_utils import tables_to_crystal
 
     num_save = min(args.num_save_cifs, samples["space_group"].shape[0])
     cif_dir = Path(args.sample_dir) / "cif_no_CL_9760"

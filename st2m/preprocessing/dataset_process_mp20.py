@@ -3,8 +3,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
 import argparse
@@ -16,18 +14,17 @@ from pymatgen.core import Structure
 import numpy as np
 import torch
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
-if PROJECT_DIR not in sys.path:
-    sys.path.insert(0, PROJECT_DIR)
+from st2m.utils import config as cfg
 
-from project.utils.dataset_utils import tables_to_crystal
-from project.utils.spg_info import (
+PROJECT_DIR = str(cfg.PROJECT_ROOT)
+
+from st2m.utils.dataset_utils import tables_to_crystal
+from st2m.utils.spg_info import (
     element_number,
     spg_wyckoff_degrees_of_freedom,
     wyckoff_label_to_index,
 )
-from project.utils.utils import extract_wyckoff_orbit_parameters
+from st2m.utils.utils import extract_wyckoff_orbit_parameters
 
 
 def _orbit_sort_key(orbit: dict) -> tuple:
@@ -98,7 +95,7 @@ def main() -> None:
         split_save_dir = os.path.join(save_dir, set)
         os.makedirs(split_save_dir, exist_ok=True)
         bar=tqdm(total=len(os.listdir(split_raw_dir)))
-        mask=torch.load(os.path.join(PROJECT_DIR, "utils", "mask_temp.pt"), map_location="cpu", weights_only=False)
+        mask=torch.load(cfg.SPACEGROUP_TEMPLATE_PATH, map_location="cpu", weights_only=False)
         for i in os.listdir(split_raw_dir):
             bar.update(1)
             if i!='mp-1206964.cif':

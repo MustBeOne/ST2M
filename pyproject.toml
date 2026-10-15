@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "st2m"
+version = "0.1.0"
+description = "Crystal structure generation with ST2M"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy", "torch", "pandas", "tqdm", "pymatgen", "pyxtal"]
+
+[project.optional-dependencies]
+validation = ["mace-torch"]
+
+[project.scripts]
+st2m-train = "st2m.train:main"
+st2m-generate = "st2m.generate:main"
+st2m-generate-steps = "st2m.generate_steps:main"
+st2m-generate-new-pattern = "st2m.generate_new_pattern:main"
+st2m-process-mp20 = "st2m.preprocessing.dataset_process_mp20:main"
+st2m-sample-new-pattern = "st2m.postproc.sample_new_pattern:main"
+st2m-extract = "st2m.postproc.extract_from_tensor:main"
+st2m-dft-post = "st2m.postproc.dft_post:main"
+st2m-validate = "st2m.postproc.validate:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["st2m*"]
+
+[tool.setuptools.package-data]
+"st2m.utils" = ["mask_temp.pt"]

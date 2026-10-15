@@ -9,9 +9,9 @@ import torch
 from torch.utils.data import Dataset
 
 
-from project.utils import config as cfg
+from st2m.utils import config as cfg
 
-from project.model.model_utils import (
+from st2m.model.model_utils import (
     _load_npy_dict,
     _torch_load,
     _prepare_lattice,

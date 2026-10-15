@@ -7,7 +7,7 @@ import socket
 import subprocess
 import argparse
 from pathlib import Path
-from project.utils.spg_info import spg_wyckoff
+from st2m.utils.spg_info import spg_wyckoff
 
 
 def extract_wyckoff_orbit_parameters(

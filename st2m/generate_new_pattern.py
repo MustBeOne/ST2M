@@ -1,10 +1,6 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-if __package__ in (None, ""):
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 import argparse
@@ -16,7 +12,7 @@ import numpy as np
 import torch
 import torch.distributed as dist
 
-from project.generate import (
+from st2m.generate import (
     _num_samples,
     _torch_load,
     lattice6_recover,
@@ -25,15 +21,16 @@ from project.generate import (
     merge_sample_shards,
     wyckoff_sample_to_tables,
 )
-from project.train import (
+from st2m.train import (
     cleanup_distributed,
     is_main_process,
     resolve_device,
     set_seed,
     setup_distributed,
 )
-from project.utils import config as cfg
-from project.utils.spg_info import spg_wyckoff_degrees_of_freedom, wyckoff_label_to_index
+from st2m import cli_args
+from st2m.utils import config as cfg
+from st2m.utils.spg_info import spg_wyckoff_degrees_of_freedom, wyckoff_label_to_index
 
 
 DEFAULT_TEMPLATE_PATH = cfg.OUTPUT_DIR / "postproc" / "new_orbit_templates.json"
@@ -44,8 +41,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Generate crystal structures from unseen occupied-orbit templates."
     )
-    cfg.add_common_args(parser)
-    cfg.add_model_args(parser)
+    cli_args.add_common_args(parser)
+    cli_args.add_model_args(parser)
     parser.add_argument("--checkpoint-path", type=str, default=str(cfg.CHECKPOINT_PATH))
     parser.add_argument(
         "--spacegroup-template-path",
@@ -235,7 +232,7 @@ def save_generated_cifs(
     metadata: list[dict[str, Any]],
     args: argparse.Namespace,
 ) -> None:
-    from project.utils.dataset_utils import tables_to_crystal
+    from st2m.utils.dataset_utils import tables_to_crystal
 
     if _num_samples(samples) != len(metadata):
         raise ValueError("Sample tensors and generation metadata have different lengths.")

@@ -1,6 +1,4 @@
-"""Crystal mixed discrete/continuous diffusion package."""
-
-from project.model import (
+from st2m.model import (
     ContinuousDDPM,
     D3PMDiffusion,
     D3PMTransition,
@@ -8,7 +6,7 @@ from project.model import (
     ST2MDiffusion,
     collate_crystal_tables,
 )
-from project.utils.config import NUM_DISCRETE_CLASSES, NUM_ELEMENT_CLASSES, VACANCY_CLASS
+from st2m.utils.config import NUM_DISCRETE_CLASSES, NUM_ELEMENT_CLASSES, VACANCY_CLASS
 
 __all__ = [
     "ContinuousDDPM",

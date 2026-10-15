@@ -23,3 +23,8 @@ outputs/
 # Editor and system files
 .DS_Store
 .gitignore
+
+# Python packaging artifacts
+*.egg-info/
+build/
+dist/

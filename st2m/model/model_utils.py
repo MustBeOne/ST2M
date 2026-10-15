@@ -1,8 +1,3 @@
-"""Shared dataset conversion, tensor, lattice and packed-sampling helpers.
-
-Dataset classes remain in dataset.py, diffusion processes in diffusion.py,
-and model architecture classes in ST2M.py.
-"""
 from __future__ import annotations
 
 import math
@@ -14,14 +9,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from project.utils.spg_info import (
+from st2m.utils.spg_info import (
     spg_wyckoff_degrees_of_freedom,
     spg_wyckoff_multiplicities,
     wyckoff_label_to_index,
 )
 
 if TYPE_CHECKING:
-    from project.model.diffusion import D3PMTransition
+    from st2m.model.diffusion import D3PMTransition
 
 def _load_npy_dict(path: str | Path) -> dict[str, Any]:
     raw = np.load(path, allow_pickle=True)

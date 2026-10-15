@@ -6,9 +6,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from project.utils.config import NUM_DISCRETE_CLASSES
+from st2m.utils.config import NUM_DISCRETE_CLASSES
 
-from project.model.model_utils import (
+from st2m.model.model_utils import (
     extract,
     sample_categorical,
 )

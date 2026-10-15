@@ -38,10 +38,12 @@ TEMPLATES_PER_SPACE_GROUP = 50
 RANDOM_SEED = None
 MAX_SAMPLING_ATTEMPTS = 1_000_000
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-TRAIN_DIR = PROJECT_ROOT / "data" / "mp20" / "processed" / "train"
-FREQUENCY_FILE = PROJECT_ROOT / "outputs" / "metric" / "sg_orbit_time_dist.json"
-OUTPUT_FILE = PROJECT_ROOT / "outputs" / "postproc" / "new_orbit_templates.json"
+from st2m.utils import config as cfg
+
+PROJECT_ROOT = cfg.PROJECT_ROOT
+TRAIN_DIR = cfg.TRAIN_DIR
+FREQUENCY_FILE = cfg.OUTPUT_DIR / "metric" / "sg_orbit_time_dist.json"
+OUTPUT_FILE = cfg.OUTPUT_DIR / "postproc" / "new_orbit_templates.json"
 
 
 def _load_npy_record(path: Path) -> dict[str, Any]:
