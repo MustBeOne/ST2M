@@ -1,0 +1,19 @@
+# Ignore all datasets
+/data/mp20/
+/data/mp20_ref_stru_mace/
+
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
+venv/
+
+# Training outputs
+checkpoints/
+outputs/
+
+# Editor and system files
+.DS_Store
