@@ -1,61 +1,123 @@
 # ST2M
 
-Crystal structure generation with mixed discrete/continuous diffusion.
+ST2M generates crystal structures using mixed discrete and continuous diffusion.
 
-## 安装
+## Installation
 
-在仓库根目录执行（外层目录可以任意命名）：
+Clone or download the repository, open a terminal in its root directory, and create a dedicated Python environment. The name of the downloaded repository directory does not matter.
+
+Install a PyTorch build compatible with your CUDA environment first. Then install ST2M and its core dependencies:
 
 ```bash
 python -m pip install -e .
 ```
 
-请先按照运行机器的 CUDA 环境安装合适的 PyTorch，再执行上面的命令。基础依赖由 `pyproject.toml` 声明，目前未锁定版本；训练复现应使用原来验证过的环境。MACE 验证功能另需 `python -m pip install -e ".[validation]"`。
+The editable installation registers the `st2m` package and its command-line entry points in the active Python environment. Changes made to the source code or `st2m/utils/config.py` are used immediately, so the package normally does not need to be reinstalled after source edits.
 
-## 集中入口
+To install the optional dependencies used for structure validation:
 
-所有启动文件都放在 `scripts/`，对应实现放在 `st2m/`。在仓库根目录运行：
+```bash
+python -m pip install -e ".[validation]"
+```
 
-| 功能 | 命令 |
+Dependency versions are currently not pinned in `pyproject.toml`. Use a tested environment with recorded package versions when exact reproduction is required.
+
+## Running ST2M
+
+Run the following commands from the repository root:
+
+| Task | Command |
 | --- | --- |
-| 训练 | `python scripts/train.py` |
-| 生成 | `python scripts/generate.py` |
-| 生成反向扩散快照 | `python scripts/generate_steps.py` |
-| 按新模式生成 | `python scripts/generate_new_pattern.py` |
-| MP20 数据处理 | `python scripts/dataset_process_mp20.py` |
-| 新模式模板采样 | `python scripts/sample_new_pattern.py` |
-| 从 tensor 导出 CIF | `python scripts/extract_from_tensor.py` |
-| DFT 后处理 | `python scripts/dft_post.py` |
-| MACE 验证 | `python scripts/validate.py` |
+| Train the model | `python scripts/train.py` |
+| Generate crystal structures | `python scripts/generate.py` |
+| Save reverse-diffusion snapshots | `python scripts/generate_steps.py` |
+| Generate structures from new patterns | `python scripts/generate_new_pattern.py` |
+| Process the MP20 dataset | `python scripts/dataset_process_mp20.py` |
+| Sample new pattern templates | `python scripts/sample_new_pattern.py` |
+| Export CIF files from saved tensors | `python scripts/extract_from_tensor.py` |
+| Run DFT post-processing | `python scripts/dft_post.py` |
+| Run structure validation | `python scripts/validate.py` |
 
-这些 Python 入口也支持传入绝对路径，因此不依赖终端当前目录。训练和生成等带参数的入口可用 `--help` 查看参数；不带参数时使用 `st2m/utils/config.py` 中的默认值。DFT 后处理及 MACE 验证保留原有任务配置。
+Use `--help` to inspect the available command-line options for an entry point:
 
-Windows 用户可以双击 `scripts/train.cmd`、`generate.cmd`、`generate_steps.cmd`、`generate_new_pattern.cmd`。启动器优先使用仓库内 `.venv/Scripts/python.exe`，否则使用 PATH 中的 `python`。使用 Conda 时建议在已激活环境的终端中运行 Python 入口；也可设置 `ST2M_PYTHON` 为解释器的完整路径。双击启动前，需要准备运行环境、数据和相应模型权重。启动器会执行实际任务，不会自动安装依赖。
+```bash
+python scripts/train.py --help
+python scripts/generate.py --help
+```
 
-安装后也可以在任意目录使用：
+After installation, the entry points declared in `pyproject.toml` can also be called from any directory:
 
 ```bash
 st2m-train
 st2m-generate
+st2m-generate-steps
+st2m-generate-new-pattern
+st2m-process-mp20
+st2m-sample-new-pattern
+st2m-extract
+```
+
+The equivalent module commands are also available:
+
+```bash
 python -m st2m.train
 python -m st2m.generate
 ```
 
-多 GPU 示例（在仓库根目录）：
+For multi-GPU training, run the launcher from the repository root. For example:
 
 ```bash
 torchrun --standalone --nproc_per_node=2 scripts/train.py
 ```
 
-## 参数设置
+### Windows launchers
 
-默认参数集中在 `st2m/utils/config.py`，可直接在文件中修改，例如 `EPOCHS`、`BATCH_SIZE`、`LR`、`CHECKPOINT_PATH` 和 `SAMPLE_SPACE_GROUPS`。修改后直接运行对应脚本即可。命令行参数仅覆盖本次运行的默认值，例如 `python scripts/train.py --epochs 100`；无需在命令行重复填写其余参数。命令行参数注册代码单独放在 `st2m/cli_args.py`。
+Windows users can run `train.cmd`, `generate.cmd`, `generate_steps.cmd`, or `generate_new_pattern.cmd` from the `scripts` directory. Each launcher first looks for `.venv/Scripts/python.exe` in the repository and otherwise uses the `python` command available on `PATH`.
 
-## 数据、权重与输出
+When using Conda, running the Python entry point from an activated environment is recommended. Alternatively, set `ST2M_PYTHON` to the full path of the desired Python executable before launching a `.cmd` file.
 
-默认位置保持为仓库根目录下的 `data/mp20/processed/`、`outputs/` 和 `temp/`。`mask_temp.pt` 位于 `st2m/utils/`，随 Python 包安装。训练和生成依赖的数据、检查点不由安装命令下载；请自行准备。现有默认检查点为 `outputs/checkpoints/best_no_CL.pt`，可通过 `--checkpoint-path` 覆盖。
+The launchers start the requested task; they do not install dependencies, datasets, or model weights.
 
-可用环境变量覆盖数据和输出目录：
+## Configuration
+
+Default settings are defined in `st2m/utils/config.py`. They can be edited directly before running a task. Common settings include:
+
+```python
+EPOCHS = 1000
+BATCH_SIZE = 32
+LR = 2e-4
+CHECKPOINT_PATH = CHECKPOINT_DIR / "best_no_CL.pt"
+SAMPLE_SPACE_GROUPS = (...)
+```
+
+When no command-line option is supplied, the value in `config.py` is used. A command-line option overrides that value for one run without modifying the file:
+
+```bash
+python scripts/train.py --epochs 100 --batch-size 16
+```
+
+Command-line argument definitions are kept in `st2m/cli_args.py`, while editable experiment defaults remain in `st2m/utils/config.py`.
+
+## Data, checkpoints, and outputs
+
+The default locations are relative to the repository root:
+
+```text
+data/mp20/processed/       processed training, validation, and test data
+outputs/checkpoints/       model checkpoints
+outputs/samples/           generated samples
+temp/                      reverse-diffusion snapshots
+```
+
+The default generation checkpoint is:
+
+```text
+outputs/checkpoints/best_no_CL.pt
+```
+
+Datasets and checkpoints are not downloaded by the installation command. They must be prepared or obtained separately before training or generation.
+
+The data and output roots can be changed with environment variables. In PowerShell:
 
 ```powershell
 $env:ST2M_DATA_ROOT = "D:/datasets/mp20/processed"
@@ -63,17 +125,21 @@ $env:ST2M_OUTPUT_DIR = "D:/runs/st2m"
 python scripts/train.py
 ```
 
-`ST2M_DATA_ROOT` 用于训练/生成读取处理后的数据；MP20 预处理仍从仓库 `data/mp20/` 读取原始数据并写入处理结果。普通安装到 site-packages 时建议显式设置数据和输出目录，避免向安装位置写入文件。
+`ST2M_DATA_ROOT` changes the processed dataset location used by training and generation. `ST2M_OUTPUT_DIR` changes the location used for checkpoints, logs, and generated samples.
 
-## 目录结构
+The MP20 preprocessing entry point currently reads raw data from `data/mp20/` in the repository and writes the processed dataset there. The required `mask_temp.pt` resource is stored in `st2m/utils/` and is included when the package is built or installed.
+
+## Repository structure
 
 ```text
 repository/
 ├── pyproject.toml
-├── scripts/          # Python 入口及 Windows 双击启动器
-├── st2m/             # 固定的 Python 包名
+├── README.md
+├── scripts/                 task entry points and Windows launchers
+├── st2m/                    importable Python package
 │   ├── train.py
 │   ├── generate.py
+│   ├── cli_args.py
 │   ├── model/
 │   ├── utils/
 │   ├── preprocessing/
@@ -83,4 +149,6 @@ repository/
 └── manuscript/
 ```
 
-原先 `from project...` 已统一改为 `from st2m...`。模型和算法不变。如果自行保存过包含完整 Python 模型对象（而非 state_dict）的旧 pickle 检查点，需另外处理其中记录的旧模块路径。
+The repository directory may have any name because internal imports use the fixed package name `st2m`.
+
+Older checkpoints that contain only model and optimizer state dictionaries remain independent of the old module path. A legacy pickle containing complete Python model objects may still reference the former `project` package path and require conversion before it can be loaded.
