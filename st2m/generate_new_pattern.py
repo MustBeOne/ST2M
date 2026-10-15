@@ -34,7 +34,7 @@ from st2m.utils.spg_info import spg_wyckoff_degrees_of_freedom, wyckoff_label_to
 
 
 DEFAULT_TEMPLATE_PATH = cfg.OUTPUT_DIR / "postproc" / "new_orbit_templates.json"
-DEFAULT_SAVE_DIR = cfg.OUTPUT_DIR / "new_template_samples_nocl"
+DEFAULT_SAVE_DIR = cfg.OUTPUT_DIR / "new_template_samples"
 
 
 def build_parser() -> argparse.ArgumentParser:

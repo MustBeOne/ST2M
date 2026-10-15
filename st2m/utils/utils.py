@@ -161,7 +161,6 @@ def forward_batch(model: torch.nn.Module, batch, device: torch.device):
         _to_device(batch.discrete_loss_mask, device),
         _to_device(batch.continuous_mask, device),
         _to_device(batch.wyckoff_letter, device),
-        _to_device(batch.wyckoff_multiplicity, device),
         _to_device(batch.space_group, device),
     )
 

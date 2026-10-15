@@ -10,13 +10,10 @@ from st2m.model.diffusion import ContinuousDDPM, D3PMDiffusion, D3PMTransition
 
 from st2m.model.model_utils import (
     _labels,
-    _sum_by_batch,
     _lattice_mask_from_space_group,
     _complete_lattice_from_space_group,
     _sinusoidal_timestep_embedding,
-    _smooth_excess,
     _d3pm_q_sample_packed,
-    _packed_per_sample_mean,
     _d3pm_vb_loss_packed,
     _d3pm_p_sample_packed,
     MLP,
@@ -30,8 +27,6 @@ class ST2MOutput:
     discrete_loss: torch.Tensor
     continuous_loss: torch.Tensor
     lattice_loss: torch.Tensor
-    contrastive_con_loss: torch.Tensor
-    contrastive_dis_loss: torch.Tensor
     t: torch.Tensor
     discrete_t: torch.Tensor
     continuous_t: torch.Tensor
@@ -39,51 +34,6 @@ class ST2MOutput:
     discrete_logits: torch.Tensor
     predicted_noise: torch.Tensor
     predicted_lattice_noise: torch.Tensor
-
-
-class DiscreteCountRegularizer(nn.Module):
-    """Penalize over-populated predicted Wyckoff orbit slots."""
-
-    def __init__(
-        self,
-        vacancy_class: int = 0,
-        orbit_margin: float = 0.0,
-        atom_margin: float = 0.0,
-        smooth_tau: float = 0.5,
-    ) -> None:
-        super().__init__()
-        self.vacancy_class = int(vacancy_class)
-        self.orbit_margin = float(orbit_margin)
-        self.atom_margin = float(atom_margin)
-        self.smooth_tau = float(smooth_tau)
-
-    def forward(
-        self,
-        logits: torch.Tensor,
-        labels: torch.Tensor,
-        slot_mask: torch.Tensor,
-        multiplicity: torch.Tensor,
-        batch_index: torch.Tensor,
-        batch_size: int | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        probs = F.softmax(logits, dim=-1)
-        slot_mask = slot_mask.to(dtype=probs.dtype)
-        p_occ = (1.0 - probs[:, self.vacancy_class]) * slot_mask
-        true_occ = (labels != self.vacancy_class).to(dtype=probs.dtype) * slot_mask
-
-        pred_orbits = _sum_by_batch(p_occ, batch_index, batch_size)
-        true_orbits = _sum_by_batch(true_occ, batch_index, batch_size)
-        orbit_limit = true_orbits + self.orbit_margin
-        orbit_excess = _smooth_excess(pred_orbits, orbit_limit, self.smooth_tau)
-        orbit_loss = (orbit_excess / orbit_limit.clamp_min(1.0)).pow(2).mean()
-
-        mult = multiplicity.to(dtype=probs.dtype).clamp_min(0.0)
-        pred_atoms = _sum_by_batch(p_occ * mult, batch_index, batch_size)
-        true_atoms = _sum_by_batch(true_occ * mult, batch_index, batch_size)
-        atom_limit = true_atoms + self.atom_margin
-        atom_excess = _smooth_excess(pred_atoms, atom_limit, self.smooth_tau)
-        multiplicity_loss = (atom_excess / atom_limit.clamp_min(1.0)).pow(2).mean()
-        return orbit_loss, multiplicity_loss
 
 
 class ST2MBranch(nn.Module):
@@ -380,11 +330,6 @@ class ST2MDiffusion(nn.Module):
         discrete_loss_weight: float = 1.0,
         continuous_loss_weight: float = 1.0,
         lattice_loss_weight: float = 1.0,
-        use_count_losses: bool = False,
-        lambda_contrastive_con: float = 0.0,
-        lambda_contrastive_dis: float = 0.0,
-        contrastive_margin: float = 1.0,
-        contrastive_use_x0: bool = False,
     ) -> None:
         super().__init__()
         self.num_classes = int(num_classes)
@@ -396,11 +341,6 @@ class ST2MDiffusion(nn.Module):
         self.discrete_loss_weight = float(discrete_loss_weight)
         self.continuous_loss_weight = float(continuous_loss_weight)
         self.lattice_loss_weight = float(lattice_loss_weight)
-        self.use_count_losses = bool(use_count_losses)
-        self.lambda_contrastive_con = float(lambda_contrastive_con)
-        self.lambda_contrastive_dis = float(lambda_contrastive_dis)
-        self.contrastive_margin = float(contrastive_margin)
-        self.contrastive_use_x0 = bool(contrastive_use_x0)
 
         self.denoiser = ST2MDenoiser(
             num_classes=num_classes,
@@ -431,170 +371,6 @@ class ST2MDiffusion(nn.Module):
             schedule=continuous_schedule,  # type: ignore[arg-type]
         )
 
-    @staticmethod
-    def _same_orbit_count_permutation(
-        batch_index: torch.Tensor,
-        space_group: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Permute conditions within each space group and orbit-count stratum."""
-        batch_size = space_group.shape[0]
-        permutation = torch.arange(batch_size, device=batch_index.device)
-        active = torch.zeros(batch_size, dtype=torch.bool, device=batch_index.device)
-        orbit_counts = torch.bincount(batch_index.long(), minlength=batch_size)
-        for group in torch.unique(space_group):
-            group_indices = torch.nonzero(space_group == group, as_tuple=False).flatten()
-            group_counts = orbit_counts[group_indices]
-            for orbit_count in torch.unique(group_counts):
-                indices = group_indices[group_counts == orbit_count]
-                if indices.numel() > 1:
-                    shift = torch.randint(1, indices.numel(), (1,), device=batch_index.device)
-                    permutation[indices] = indices.roll(int(shift.item()))
-                    active[indices] = True
-        return permutation, active
-
-    @staticmethod
-    def _permute_packed_by_sample(
-        values: torch.Tensor,
-        batch_index: torch.Tensor,
-        permutation: torch.Tensor,
-    ) -> torch.Tensor:
-        """Move whole packed sample blocks between equal-length samples."""
-        result = values.clone()
-        for target_index, source_index in enumerate(permutation.tolist()):
-            if target_index == source_index:
-                continue
-            target_rows = torch.nonzero(batch_index == target_index, as_tuple=False).flatten()
-            source_rows = torch.nonzero(batch_index == source_index, as_tuple=False).flatten()
-            if target_rows.numel() != source_rows.numel():
-                raise ValueError("negative conditions require equal orbit counts.")
-            result[target_rows] = values[source_rows]
-        return result
-
-    def _contrastive_losses(
-        self,
-        labels_0: torch.Tensor,
-        continuous_0: torch.Tensor,
-        lattice_0: torch.Tensor,
-        lattice_mask: torch.Tensor,
-        batch_index: torch.Tensor,
-        discrete_loss_mask: torch.Tensor,
-        continuous_mask: torch.Tensor,
-        t: torch.Tensor,
-        token_t: torch.Tensor,
-        discrete_t: torch.Tensor,
-        continuous_t: torch.Tensor,
-        lattice_t: torch.Tensor,
-        discrete_logits: torch.Tensor,
-        predicted_noise: torch.Tensor,
-        predicted_lattice_noise: torch.Tensor,
-        target_noise: torch.Tensor,
-        target_lattice_noise: torch.Tensor,
-        letter: torch.Tensor,
-        space_group: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Use continuous noise or x0 errors; discrete distances always use x0 CE."""
-        zero = continuous_0.new_tensor(0.0)
-        permutation, active = self._same_orbit_count_permutation(batch_index, space_group)
-        if not bool(active.any()):
-            return zero, zero
-
-        negative_labels_0 = self._permute_packed_by_sample(labels_0, batch_index, permutation)
-        negative_continuous_0 = self._permute_packed_by_sample(continuous_0, batch_index, permutation)
-        negative_lattice_0 = lattice_0[permutation]
-
-        negative_discrete_t = _d3pm_q_sample_packed(
-            self.discrete_diffusion.transition,
-            negative_labels_0,
-            token_t,
-        )
-        negative_continuous_t, _ = self.continuous_diffusion.q_sample(
-            negative_continuous_0,
-            token_t,
-            noise=target_noise,
-            mask=continuous_mask,
-        )
-        negative_lattice_t, _ = self.continuous_diffusion.q_sample(
-            negative_lattice_0,
-            t,
-            noise=target_lattice_noise,
-            mask=lattice_mask,
-        )
-
-        _, negative_continuous_noise, negative_lattice_noise = self.denoiser(
-            negative_discrete_t,
-            continuous_t,
-            lattice_t,
-            t,
-            batch_index=batch_index,
-            letter=letter,
-            space_group=space_group,
-        )
-        negative_discrete_logits, _, _ = self.denoiser(
-            discrete_t,
-            negative_continuous_t,
-            negative_lattice_t,
-            t,
-            batch_index=batch_index,
-            letter=letter,
-            space_group=space_group,
-        )
-
-        if self.contrastive_use_x0:
-            # Both conditions reconstruct the same target from its noisy state.
-            predicted_noise = self.continuous_diffusion.predict_x0_from_eps(
-                continuous_t, token_t, predicted_noise
-            )
-            negative_continuous_noise = self.continuous_diffusion.predict_x0_from_eps(
-                continuous_t, token_t, negative_continuous_noise
-            )
-            predicted_lattice_noise = self.continuous_diffusion.predict_x0_from_eps(
-                lattice_t, t, predicted_lattice_noise
-            )
-            negative_lattice_noise = self.continuous_diffusion.predict_x0_from_eps(
-                lattice_t, t, negative_lattice_noise
-            )
-            target_noise = continuous_0
-            target_lattice_noise = lattice_0
-
-        coordinate_weights = continuous_mask.sum(dim=-1)
-        positive_coordinate_error = ((target_noise - predicted_noise).square() * continuous_mask).sum(dim=-1)
-        negative_coordinate_error = ((target_noise - negative_continuous_noise).square() * continuous_mask).sum(dim=-1)
-        coordinate_counts = _sum_by_batch(coordinate_weights, batch_index, lattice_0.shape[0])
-        positive_errors = _sum_by_batch(positive_coordinate_error, batch_index, lattice_0.shape[0])
-        negative_errors = _sum_by_batch(negative_coordinate_error, batch_index, lattice_0.shape[0])
-        lattice_counts = lattice_mask.sum(dim=-1)
-        positive_errors = positive_errors + (
-            (target_lattice_noise - predicted_lattice_noise).square() * lattice_mask
-        ).sum(dim=-1)
-        negative_errors = negative_errors + (
-            (target_lattice_noise - negative_lattice_noise).square() * lattice_mask
-        ).sum(dim=-1)
-        continuous_distance_positive = positive_errors / (coordinate_counts + lattice_counts).clamp_min(1.0)
-        continuous_distance_negative = negative_errors / (coordinate_counts + lattice_counts).clamp_min(1.0)
-
-        discrete_distance_positive = _packed_per_sample_mean(
-            F.cross_entropy(discrete_logits, labels_0, reduction="none"),
-            discrete_loss_mask,
-            batch_index,
-            lattice_0.shape[0],
-        )
-        discrete_distance_negative = _packed_per_sample_mean(
-            F.cross_entropy(negative_discrete_logits, labels_0, reduction="none"),
-            discrete_loss_mask,
-            batch_index,
-            lattice_0.shape[0],
-        )
-        active_weights = active.to(dtype=continuous_0.dtype)
-        continuous_triplets = F.relu(
-            continuous_distance_positive - continuous_distance_negative + self.contrastive_margin
-        )
-        discrete_triplets = F.relu(
-            discrete_distance_positive - discrete_distance_negative + self.contrastive_margin
-        )
-        continuous_loss = (continuous_triplets * active_weights).sum() / active_weights.sum().clamp_min(1.0)
-        discrete_loss = (discrete_triplets * active_weights).sum() / active_weights.sum().clamp_min(1.0)
-        return continuous_loss, discrete_loss
-
     def forward(
         self,
         discrete_0: torch.Tensor,
@@ -605,7 +381,6 @@ class ST2MDiffusion(nn.Module):
         discrete_loss_mask: torch.Tensor,
         continuous_mask: torch.Tensor,
         letter: torch.Tensor,
-        multiplicity: torch.Tensor,
         space_group: torch.Tensor,
         t: torch.Tensor | None = None,
     ) -> ST2MOutput:
@@ -655,42 +430,13 @@ class ST2MDiffusion(nn.Module):
             target_lattice_noise,
             mask=lattice_mask,
         )
-        orbit_count_loss = continuous_0.new_tensor(0.0)
-        multiplicity_count_loss = continuous_0.new_tensor(0.0)
-        
-        if self.lambda_contrastive_con > 0 or self.lambda_contrastive_dis > 0:
-            contrastive_con_loss, contrastive_dis_loss = self._contrastive_losses(
-                labels_0,
-                continuous_0,
-                lattice_0,
-                lattice_mask,
-                batch_index,
-                discrete_loss_mask,
-                cont_mask,
-                t,
-                token_t,
-                discrete_t,
-                continuous_t,
-                lattice_t,
-                discrete_logits,
-                predicted_noise,
-                predicted_lattice_noise,
-                target_noise,
-                target_lattice_noise,
-                letter,
-                space_group,
-            )
-        else:
-            contrastive_con_loss = continuous_0.new_tensor(0.0)
-            contrastive_dis_loss = continuous_0.new_tensor(0.0)
+
         continuous_objective = (
             self.continuous_loss_weight * continuous_loss
             + self.lattice_loss_weight * lattice_loss
-            + self.lambda_contrastive_con * contrastive_con_loss
         )
         discrete_objective = (
             self.discrete_loss_weight * discrete_loss
-            + self.lambda_contrastive_dis * contrastive_dis_loss
         )
         loss = continuous_objective + discrete_objective
         return ST2MOutput(
@@ -700,8 +446,6 @@ class ST2MDiffusion(nn.Module):
             discrete_loss=discrete_loss,
             continuous_loss=continuous_loss,
             lattice_loss=lattice_loss,
-            contrastive_con_loss=contrastive_con_loss,
-            contrastive_dis_loss=contrastive_dis_loss,
             t=t,
             discrete_t=discrete_t,
             continuous_t=continuous_t,

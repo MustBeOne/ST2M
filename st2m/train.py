@@ -60,11 +60,6 @@ def make_model(args: argparse.Namespace) -> torch.nn.Module:
         discrete_loss_weight=args.discrete_loss_weight,
         continuous_loss_weight=args.continuous_loss_weight,
         lattice_loss_weight=args.lattice_loss_weight,
-        use_count_losses=args.use_count_losses,
-        lambda_contrastive_con=args.lambda_contrastive_con,
-        lambda_contrastive_dis=args.lambda_contrastive_dis,
-        contrastive_margin=args.contrastive_margin,
-        contrastive_use_x0=args.contrastive_use_x0,
     )
 
 
@@ -108,17 +103,6 @@ def print_training_summary(
         f"discrete:{args.discrete_loss_weight:g}, "
         f"continuous:{args.continuous_loss_weight:g}, "
         f"lattice:{args.lattice_loss_weight:g}, "
-        f"contrastive_continuous:{args.lambda_contrastive_con:g}, "
-        f"contrastive_discrete:{args.lambda_contrastive_dis:g}"
-    )
-    print(
-        f"contrastive_margin={args.contrastive_margin:g} "
-        f"contrastive_continuous_target={'x0' if args.contrastive_use_x0 else 'noise'} "
-        "negative_conditions=permuted_within_space_group_and_equal_orbit_count"
-    )
-    print(
-        f"count_atom_margin={args.count_loss_atom_margin:g} "
-        f"count_smooth_tau={args.count_loss_smooth_tau:g}"
     )
     print(
         f"transformer=d_model:{args.transformer_d_model}, nhead:{args.transformer_nhead}, "
@@ -129,8 +113,7 @@ def print_training_summary(
         discrete_params = sum(param.numel() for param in base_model.denoiser.discrete_model.parameters())
         continuous_params = sum(param.numel() for param in base_model.denoiser.continuous_model.parameters())
         print(
-            f"separate_objectives=L_D(diff_discrete+count+lambda_dis*CL_dis), "
-            f"L_C(diff_continuous+lattice+lambda_con*CL_con) "
+            f"separate_objectives=L_D(discrete), L_C(continuous+lattice) "
             f"branch_parameters=discrete:{discrete_params:,}, continuous:{continuous_params:,}"
         )
     print(f"parameters=total:{total_params:,} trainable:{trainable_params:,}")
@@ -178,8 +161,6 @@ def evaluate(
         "discrete_loss": 0.0,
         "continuous_loss": 0.0,
         "lattice_loss": 0.0,
-        "contrastive_con_loss": 0.0,
-        "contrastive_dis_loss": 0.0,
     }
     count = 0
     for batch in loader:
@@ -191,8 +172,6 @@ def evaluate(
         totals["discrete_loss"] += out.discrete_loss.item() * batch_size
         totals["continuous_loss"] += out.continuous_loss.item() * batch_size
         totals["lattice_loss"] += out.lattice_loss.item() * batch_size
-        totals["contrastive_con_loss"] += out.contrastive_con_loss.item() * batch_size
-        totals["contrastive_dis_loss"] += out.contrastive_dis_loss.item() * batch_size
         count += batch_size
     return {key: value / max(count, 1) for key, value in totals.items()}
 
@@ -323,8 +302,6 @@ def run(args: argparse.Namespace) -> None:
                         f"d3pm={out.discrete_loss.item():.5f} "
                         f"ddpm={out.continuous_loss.item():.5f} "
                         f"lat={out.lattice_loss.item():.5f} "
-                        f"cl_con={out.contrastive_con_loss.item():.5f} "
-                        f"cl_dis={out.contrastive_dis_loss.item():.5f}"
                     )
 
             if main_process:
@@ -343,8 +320,6 @@ def run(args: argparse.Namespace) -> None:
                         f"val_d3pm={metrics['discrete_loss']:.5f} "
                         f"val_ddpm={metrics['continuous_loss']:.5f} "
                         f"val_lat={metrics['lattice_loss']:.5f} "
-                        f"cl_con={metrics["contrastive_con_loss"]:.5f}"
-                        f"cl_dis={metrics["contrastive_dis_loss"]:.5f}"
                     )
                     if metrics["loss"] < best_val:
                         best_val = metrics["loss"]

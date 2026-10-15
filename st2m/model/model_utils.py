@@ -228,21 +228,6 @@ def _labels(discrete: torch.Tensor) -> torch.Tensor:
     raise ValueError(f"discrete must be [B,L,K] or [B,L,K,C], got {tuple(discrete.shape)}.")
 
 
-def _num_batches(batch_index: torch.Tensor) -> int:
-    if batch_index.numel() == 0:
-        return 0
-    return int(batch_index.max().item()) + 1
-
-
-def _sum_by_batch(values: torch.Tensor, batch_index: torch.Tensor, batch_size: int | None = None) -> torch.Tensor:
-    if batch_size is None:
-        batch_size = _num_batches(batch_index)
-    out = values.new_zeros(batch_size)
-    if values.numel() > 0:
-        out.index_add_(0, batch_index.long(), values)
-    return out
-
-
 def _lattice_mask_from_space_group(space_group: torch.Tensor, lattice_dim: int) -> torch.Tensor:
     if lattice_dim != 6:
         return torch.ones(space_group.shape[0], lattice_dim, dtype=torch.float32, device=space_group.device)
@@ -299,12 +284,6 @@ def _sinusoidal_timestep_embedding(t: torch.Tensor, dim: int) -> torch.Tensor:
     return emb
 
 
-def _smooth_excess(value: torch.Tensor, limit: torch.Tensor, tau: float) -> torch.Tensor:
-    tau = max(float(tau), 1e-6)
-    centered = tau * F.softplus((value - limit) / tau) - tau * math.log(2.0)
-    return F.relu(centered)
-
-
 def _d3pm_q_sample_packed(
     transition: D3PMTransition,
     labels: torch.Tensor,
@@ -314,18 +293,6 @@ def _d3pm_q_sample_packed(
     qbar = transition.qt_bar.to(labels.device)[token_t.long()]
     probs = torch.einsum("nc,ncd->nd", labels_onehot, qbar)
     return sample_categorical(probs)
-
-
-def _packed_per_sample_mean(
-    values: torch.Tensor,
-    weights: torch.Tensor,
-    batch_index: torch.Tensor,
-    batch_size: int,
-) -> torch.Tensor:
-    weights = weights.to(device=values.device, dtype=values.dtype).reshape(-1)
-    numerators = _sum_by_batch(values * weights, batch_index, batch_size)
-    denominators = _sum_by_batch(weights, batch_index, batch_size)
-    return numerators / denominators.clamp_min(1.0)
 
 
 def _d3pm_vb_loss_packed(

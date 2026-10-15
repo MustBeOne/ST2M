@@ -86,7 +86,7 @@ Default settings are defined in `st2m/utils/config.py`. They can be edited direc
 EPOCHS = 1000
 BATCH_SIZE = 32
 LR = 2e-4
-CHECKPOINT_PATH = CHECKPOINT_DIR / "best_no_CL.pt"
+CHECKPOINT_PATH = CHECKPOINT_DIR / "best.pt"
 SAMPLE_SPACE_GROUPS = (...)
 ```
 
@@ -112,7 +112,7 @@ temp/                      reverse-diffusion snapshots
 The default generation checkpoint is:
 
 ```text
-outputs/checkpoints/best_no_CL.pt
+outputs/checkpoints/best.pt
 ```
 
 Datasets and checkpoints are not downloaded by the installation command. They must be prepared or obtained separately before training or generation.

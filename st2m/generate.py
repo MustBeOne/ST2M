@@ -289,7 +289,7 @@ def save_wyckoff_generated_cifs(samples: dict[str, Any], args: argparse.Namespac
     from st2m.utils.dataset_utils import tables_to_crystal
 
     num_save = min(args.num_save_cifs, samples["space_group"].shape[0])
-    cif_dir = Path(args.sample_dir) / "cif_no_CL_9760"
+    cif_dir = Path(args.sample_dir) / "cif_9760"
     cif_dir.mkdir(parents=True, exist_ok=True)
     file_list = os.listdir(cif_dir)
     for file_name in file_list:
